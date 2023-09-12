@@ -1,0 +1,107 @@
+<!doctype html>
+<html>
+  <head>
+    <style>
+      .row {
+          margin-bottom: 1em;
+      }
+      * {
+          font-size: 30px;
+      }
+      h1 {
+          font-size: 36px;
+      }
+    </style>
+    <script>
+const R = 22_038_172;
+const a0 = 0.3;
+const z0 = 1 / 500;
+
+function g(sigma_, s_) {
+  return R / (1 + a0) * (sigma_ + s_ * a0 * (sigma_ - s_ * (z0 - sigma_) / z0) / z0);
+}
+
+function g_(sigma_, s_) {
+  const A = a0 * sigma_ / z0; // 0.2717849327481794
+  const B = a0 * (z0 - sigma_) / z0 / z0; // 14.107533625910298
+  console.log('A=', A);
+  console.log('B=', B);
+  return R / (1 + a0) * (sigma_ + A * s_ - B * s_ * s_);
+}
+const current_ADA_supply = 35_873_953_355;
+
+function f(delegated, pledged) {
+  return g(delegated / current_ADA_supply, pledged / current_ADA_supply); 
+}
+
+function apr(delegated, pledged) {
+  const epoch_reward = f(delegated, pledged);
+  return (epoch_reward / delegated + 1) ** (365 / 5) - 1;
+}
+
+
+      window.addEventListener('load', function () {
+        function onRecalc () {
+          const pledge = document.getElementById('input_pledge').value;
+          const delegation = document.getElementById('input_delegation').value;
+          calc(pledge, delegation);
+          window.location.hash = `pledge=${pledge}&delegation=${delegation}`;
+        }
+        function setOutput (str) {
+          document.getElementById('output_apr').textContent = str;
+        }
+        function parseAmount (str, which) {
+          const m = str.trim().replace(/,/g, '').match(/^(\d+)(m|M|k|K)?$/);
+          if (!m) {
+            throw new Error(`invalid ${which}`);
+          }
+          let amount = Number(m[1]);
+          if (m[2] === 'm' || m[2] === 'M') {
+            amount *= (10 ** 6);
+          }
+          if (m[2] === 'k' || m[2] === 'K') {
+            amount *= (10 ** 3);
+          }
+          return amount;
+        }
+        function calc (pledgeStr, delegationStr) {
+          try {
+            const pledge = parseAmount(pledgeStr, 'pledge');
+            const delegation = parseAmount(delegationStr, 'delegation');
+            const result = apr(delegation, pledge);
+            setOutput(`${result * 100}%`);
+          } catch (error) {
+            console.error(error);
+            setOutput(error.message);
+          }
+        }
+        document.getElementById('btn_recalc').addEventListener('click', onRecalc);
+        const params = new URLSearchParams(window.location.hash.replace(/^#/,''));
+        const pledge = params.get('pledge');
+        const delegation = params.get('delegation');
+        if (pledge !== null & delegation !== null) {
+          document.getElementById('input_pledge').value = pledge;
+          document.getElementById('input_delegation').value = delegation;
+          calc(pledge, delegation);
+        }
+      });
+    </script>
+  </head>
+  <body>
+    <h1>Private pool rewards estimator</h1>
+    <div class="row">
+      <label for="input_pledge">Pledge:</label>
+      <input id="input_pledge" type="text" />
+    </div>
+    <div class="row">
+      <label for="input_delegation">Delegation:</label>
+      <input id="input_delegation" type="text" />
+    </div>
+    <div class="row">
+      <button id="btn_recalc">Calculate</button>
+    </div>
+    <div class="row">
+      APR: <span id="output_apr" />
+    </div>
+  </body>
+</html>
