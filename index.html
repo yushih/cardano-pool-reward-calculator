@@ -11,6 +11,10 @@
       h1 {
           font-size: 36px;
       }
+      .instructions, .instructions * {
+          font-size: 16px;
+          width: 40em;
+      }
     </style>
     <script>
 const R = 22_038_172;
@@ -34,21 +38,31 @@ function f(delegated, pledged) {
   return g(delegated / current_ADA_supply, pledged / current_ADA_supply); 
 }
 
-function apr(delegated, pledged) {
+function privateApr(delegated, pledged) {
   const epoch_reward = f(delegated, pledged);
+  // no compound interest
+  //return epoch_reward * (365 / 5) / delegated;
+  // with compound interest
   return (epoch_reward / delegated + 1) ** (365 / 5) - 1;
 }
 
-
+function publicApr(delegated, pledged, margin) {
+  const epoch_reward = f(delegated, pledged);
+  const operator_reward = 340 + (epoch_reward - 340) * margin / 100;
+  const owner_reward = (epoch_reward - operator_reward) * pledged / delegated;
+  return (operator_reward + owner_reward) * (365 / 5) / pledged;
+}
       window.addEventListener('load', function () {
         function onRecalc () {
           const pledge = document.getElementById('input_pledge').value;
           const delegation = document.getElementById('input_delegation').value;
-          calc(pledge, delegation);
+          const margin = document.getElementById('input_margin').value;
+          calc(pledge, delegation, margin);
           window.location.hash = `pledge=${pledge}&delegation=${delegation}`;
         }
-        function setOutput (str) {
-          document.getElementById('output_apr').textContent = str;
+        function setOutput (privateApr, publicApr) {
+          document.getElementById('output_private_apr').textContent = privateApr;
+          document.getElementById('output_public_apr').textContent = publicApr;
         }
         function parseAmount (str, which) {
           const m = str.trim().replace(/,/g, '').match(/^(\d+)(m|M|k|K)?$/);
@@ -64,12 +78,13 @@ function apr(delegated, pledged) {
           }
           return amount;
         }
-        function calc (pledgeStr, delegationStr) {
+        function calc (pledgeStr, delegationStr, marginStr) {
           try {
             const pledge = parseAmount(pledgeStr, 'pledge');
             const delegation = parseAmount(delegationStr, 'delegation');
-            const result = apr(delegation, pledge);
-            setOutput(`${result * 100}%`);
+            const privateAprResult = privateApr(delegation, pledge);
+            const publicAprResult = publicApr(delegation, pledge, Number(marginStr));
+            setOutput(`${privateAprResult * 100}%`, `${publicAprResult * 100}%`);
           } catch (error) {
             console.error(error);
             setOutput(error.message);
@@ -82,13 +97,46 @@ function apr(delegated, pledged) {
         if (pledge !== null & delegation !== null) {
           document.getElementById('input_pledge').value = pledge;
           document.getElementById('input_delegation').value = delegation;
-          calc(pledge, delegation);
+          onRecalc();
         }
       });
     </script>
   </head>
   <body>
-    <h1>Private pool rewards estimator</h1>
+    <h1>Pool operator rewards estimator</h1>
+    <div class="instructions">
+      To calcuate operator rewards for private pool:
+      <ol>
+        <li>
+          Set "Delegated ADA" to your capital ADA amount.
+        </li>
+        <li>
+          Set "Pledge parameter" also to your capital ADA amount. Only in <strong>very unconventional</strong> edge cases, this parameter is set to other values.
+        </li>
+        <li>
+          Click the "Calculate" button.
+        </li>
+        <li>
+          Read the "Private pool APR" result and <strong>ignore</strong> the "Public pool APR" result.
+        </li>
+      </ol>
+      To calucate operator rewards for public pool:
+      <ol>
+        <li>
+          Set the "Delegated ADA" to the total delegated ADA  (pledage + external stake) of the pool.
+        </li>
+        <li>
+          Set the "Pledge parameter" to your capital ADA amount.
+        </li>
+        <li>
+          Click the "Calculate" button.
+        </li>
+        <li>
+          Read the "Public pool APR" result and <strong>ignore</strong> the "Private pool APR" result.
+        </li>
+      </ol>
+    </div>
+
     <div class="row">
       <label for="input_pledge">Pledge parameter:</label>
       <input id="input_pledge" type="text" />
@@ -98,10 +146,16 @@ function apr(delegated, pledged) {
       <input id="input_delegation" type="text" />
     </div>
     <div class="row">
+      <label for="input_margin">Margin:</label>
+      <input disabled="true" size="2" id="input_margin" type="text" value="1.5" />%
+    </div>
+    <div class="row">
       <button id="btn_recalc">Calculate</button>
     </div>
     <div class="row">
-      APR: <span id="output_apr" />
+      Private pool APR: <span id="output_private_apr"></span>
+      <br />
+      Public pool APR: <span id="output_public_apr"></span>
     </div>
   </body>
 </html>
